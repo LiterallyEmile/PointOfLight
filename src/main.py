@@ -17,6 +17,20 @@ from pathlib import Path
 
 # ── path detection ────────────────────────────────────────────────────────────
 
+def _is_real_halo_install(path: Path) -> bool:
+    """True when path is a full Halo Infinite install, not just a bare exe copy."""
+    if not (path / "HaloInfinite.exe").exists():
+        return False
+    # A real install has more than the lone exe — at least one .dll or a subdirectory.
+    try:
+        for item in path.iterdir():
+            if item.suffix.lower() == ".dll" or (item.is_dir() and item.name != "__pycache__"):
+                return True
+    except OSError:
+        pass
+    return False
+
+
 def _find_halo() -> Path | None:
     """Locate Halo Infinite Campaign on this PC (Game Pass or Steam)."""
     candidates: list[Path] = []
@@ -48,7 +62,7 @@ def _find_halo() -> Path | None:
         pass
 
     for p in candidates:
-        if p.is_dir() and (p / "HaloInfinite.exe").exists():
+        if _is_real_halo_install(p):
             return p
 
     return None
@@ -116,8 +130,8 @@ def main() -> None:
 
     # Resolve Halo Infinite path
     halo_path = Path(args.halo_path) if args.halo_path else None
-    if halo_path and not (halo_path / "HaloInfinite.exe").exists():
-        halo_path = None  # provided path is bad; fall through to auto-detect
+    if halo_path and not _is_real_halo_install(halo_path):
+        halo_path = None  # bare Melty copy or wrong path; fall through to auto-detect
     if halo_path is None:
         halo_path = _find_halo()
     if halo_path is None:
