@@ -30,7 +30,7 @@ def _is_real_halo_install(path: Path) -> bool:
         return False
     try:
         count = sum(1 for _ in path.iterdir())
-        return count >= 5
+        return count >= 2
     except OSError:
         return False
 
@@ -112,6 +112,31 @@ def _find_ori() -> Path | None:
 
 # ── launch helpers ────────────────────────────────────────────────────────────
 
+def _launch_halo_appx() -> bool:
+    """Launch Halo Infinite via its AppX package (Xbox Game Pass). Returns True if launched."""
+    try:
+        ps = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-NonInteractive", "-Command",
+                "(Get-AppxPackage | Where-Object { $_.Name -match 'HaloInfinite' } "
+                "| Select-Object -First 1).PackageFamilyName",
+            ],
+            capture_output=True, text=True, timeout=20,
+        )
+        pfn = ps.stdout.strip()
+        if pfn:
+            for entry in ("HaloInfinite", "App", "game"):
+                try:
+                    subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{pfn}!{entry}"])
+                    print(f"[Point of Light] Launched via AppX: {pfn}!{entry}")
+                    return True
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return False
+
+
 def _launch_halo(halo_path: Path) -> None:
     candidates = [
         halo_path / "HaloInfinite.exe",
@@ -137,8 +162,10 @@ def _launch_halo(halo_path: Path) -> None:
                 return
         except OSError:
             continue
-    # Exe is inaccessible (common with Game Pass); ask the player to launch manually.
-    print("[Point of Light] Could not launch HaloInfinite.exe directly.")
+    # Game Pass: launch via AppX package manager
+    if _launch_halo_appx():
+        return
+    print("[Point of Light] Could not launch Halo Infinite automatically.")
     print("[Point of Light] Please start Halo Infinite from the Xbox app now.")
     print("[Point of Light] Waiting for the game process (up to 3 min)...")
 
