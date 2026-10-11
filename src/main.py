@@ -18,17 +18,21 @@ from pathlib import Path
 # ── path detection ────────────────────────────────────────────────────────────
 
 def _is_real_halo_install(path: Path) -> bool:
-    """True when path is a full Halo Infinite install, not just a bare exe copy."""
-    if not (path / "HaloInfinite.exe").exists():
+    """True when path is a full Halo Infinite install, not just a bare Melty-managed copy.
+
+    Steam installs have HaloInfinite.exe + dlls/subdirs.
+    Xbox Game Pass installs have the exe in a locked WindowsApps folder, but the
+    content folder (maps, modules, etc.) has many files.
+    Either way, a real install has at least 5 items; Melty's bare copy has only one
+    marker file.
+    """
+    if not path.is_dir():
         return False
-    # A real install has more than the lone exe — at least one .dll or a subdirectory.
     try:
-        for item in path.iterdir():
-            if item.suffix.lower() == ".dll" or (item.is_dir() and item.name != "__pycache__"):
-                return True
+        count = sum(1 for _ in path.iterdir())
+        return count >= 5
     except OSError:
-        pass
-    return False
+        return False
 
 
 def _find_halo() -> Path | None:
@@ -62,6 +66,11 @@ def _find_halo() -> Path | None:
         pass
 
     for p in candidates:
+        if _is_real_halo_install(p):
+            return p
+    # Also check the Content sub-folder of each candidate
+    for base in list(candidates):
+        p = base / "Content"
         if _is_real_halo_install(p):
             return p
 
@@ -104,15 +113,34 @@ def _find_ori() -> Path | None:
 # ── launch helpers ────────────────────────────────────────────────────────────
 
 def _launch_halo(halo_path: Path) -> None:
-    exe = halo_path / "HaloInfinite.exe"
-    if not exe.exists():
-        for found in halo_path.rglob("HaloInfinite.exe"):
-            exe = found
-            break
-    if not exe.exists():
-        sys.exit(f"[Point of Light] HaloInfinite.exe not found under {halo_path}")
-    subprocess.Popen([str(exe), "-singleplayer", "-novid"])
-    print(f"[Point of Light] Launched: {exe}")
+    candidates = [
+        halo_path / "HaloInfinite.exe",
+        halo_path.parent / "HaloInfinite.exe",  # Content sub-folder case
+    ]
+    # Xbox Game Pass: exe lives in a locked WindowsApps directory
+    try:
+        import glob as _glob
+        for pat in [
+            r"C:\Program Files\WindowsApps\Microsoft.HaloInfinite_*\HaloInfinite.exe",
+            r"C:\Program Files\WindowsApps\Microsoft.HaloInfinite_*\Content\HaloInfinite.exe",
+        ]:
+            hits = _glob.glob(pat)
+            if hits:
+                candidates.append(Path(hits[0]))
+    except Exception:
+        pass
+    for exe in candidates:
+        try:
+            if exe.exists():
+                subprocess.Popen([str(exe), "-singleplayer", "-novid"])
+                print(f"[Point of Light] Launched: {exe}")
+                return
+        except OSError:
+            continue
+    # Exe is inaccessible (common with Game Pass); ask the player to launch manually.
+    print("[Point of Light] Could not launch HaloInfinite.exe directly.")
+    print("[Point of Light] Please start Halo Infinite from the Xbox app now.")
+    print("[Point of Light] Waiting for the game process (up to 3 min)...")
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
