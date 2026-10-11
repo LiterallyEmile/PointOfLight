@@ -17,7 +17,7 @@ cmd = [
     "--hidden-import", "inputs",
     "--hidden-import", "win32api",
     "--hidden-import", "win32con",
-    "src/main.py",
+    "pointoflight.py",
 ]
 
 print("Building pointoflight.exe...")
