@@ -26,19 +26,39 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# Signatures (AOB patterns, '??' = wildcard byte)
-# Found in HaloInfinite.exe via community reverse engineering.
-# Update these if the game patches and signatures no longer match.
+# Signatures (AOB patterns).
+# Each entry: (pattern_bytes, mask_bytes, rip_offset_pos, ptr_chain_offset)
+#   pattern bytes: use \x00 for wildcard positions
+#   mask bytes:    \xFF = exact, \x00 = wildcard
+#   rip_offset_pos: byte index inside pattern where the 4-byte RIP offset starts
+#   ptr_chain_offset: added after first pointer dereference (typically 0x10)
 # ---------------------------------------------------------------------------
-# Wildcard bytes are \x00 in the pattern with \x00 in the mask.
-# Exact bytes are themselves in pattern with \xFF in the mask.
-_SIG_PLAYER_UNIT = (
-    b"\x48\x8B\x05\x00\x00\x00\x00"   # mov rax, [rip+?]  — 4 wildcard offset bytes
-    b"\x48\x85\xC0"                    # test rax, rax
-    b"\x74\x00"                        # jz <skip>  — wildcard offset
-    b"\x48\x8B\x48\x10"               # mov rcx, [rax+10]
-)
-_SIG_MASK_PLAYER_UNIT = b"\xFF\xFF\xFF\x00\x00\x00\x00\xFF\xFF\xFF\xFF\x00\xFF\xFF\xFF\xFF"
+_CANDIDATE_SIGS = [
+    # Variant A: mov rax,[rip+?]; test rax,rax; jz ?; mov rcx,[rax+10]
+    (
+        b"\x48\x8B\x05\x00\x00\x00\x00\x48\x85\xC0\x74\x00\x48\x8B\x48\x10",
+        b"\xFF\xFF\xFF\x00\x00\x00\x00\xFF\xFF\xFF\xFF\x00\xFF\xFF\xFF\xFF",
+        3, 0x10,
+    ),
+    # Variant B: mov rax,[rip+?]; test rax,rax; je ?; mov rcx,[rax+18]  (ptr chain +0x18)
+    (
+        b"\x48\x8B\x05\x00\x00\x00\x00\x48\x85\xC0\x74\x00\x48\x8B\x48\x18",
+        b"\xFF\xFF\xFF\x00\x00\x00\x00\xFF\xFF\xFF\xFF\x00\xFF\xFF\xFF\xFF",
+        3, 0x18,
+    ),
+    # Variant C: mov rcx,[rip+?]; test rcx,rcx; jz ?; mov rcx,[rcx+10]
+    (
+        b"\x48\x8B\x0D\x00\x00\x00\x00\x48\x85\xC9\x74\x00\x48\x8B\x49\x10",
+        b"\xFF\xFF\xFF\x00\x00\x00\x00\xFF\xFF\xFF\xFF\x00\xFF\xFF\xFF\xFF",
+        3, 0x10,
+    ),
+    # Variant D: mov rbx,[rip+?]; test rbx,rbx; jz ?; mov rcx,[rbx+10]
+    (
+        b"\x48\x8B\x1D\x00\x00\x00\x00\x48\x85\xDB\x74\x00\x48\x8B\x4B\x10",
+        b"\xFF\xFF\xFF\x00\x00\x00\x00\xFF\xFF\xFF\xFF\x00\xFF\xFF\xFF\xFF",
+        3, 0x10,
+    ),
+]
 
 # Offsets from the player biped object base
 _OFF_POSITION   = 0x0A8   # float[3]  x,y,z world position
@@ -98,24 +118,30 @@ class HaloInfiniteBridge:
     # ------------------------------------------------------------------
 
     def _scan_addresses(self) -> None:
-        pattern = _SIG_PLAYER_UNIT
-        addr = pymem.pattern.pattern_scan_all(
-            self._pm.process_handle, pattern,
-            mask=_SIG_MASK_PLAYER_UNIT, return_multiple=False,
+        for i, (pattern, mask, rip_pos, chain_off) in enumerate(_CANDIDATE_SIGS):
+            try:
+                addr = pymem.pattern.pattern_scan_all(
+                    self._pm.process_handle, pattern,
+                    mask=mask, return_multiple=False,
+                )
+            except TypeError:
+                # older pymem may not accept mask kwarg — fall back to exact scan
+                addr = pymem.pattern.pattern_scan_all(
+                    self._pm.process_handle, pattern, return_multiple=False,
+                )
+            if addr:
+                print(f"[Bridge] Signature variant {i} matched at 0x{addr:X}")
+                rel = self._pm.read_int(addr + rip_pos)
+                instr_end = addr + rip_pos + 4
+                ptr_addr = instr_end + rel
+                self._player_base = self._pm.read_longlong(ptr_addr)
+                self._player_base = self._pm.read_longlong(self._player_base + chain_off)
+                return
+
+        raise RuntimeError(
+            "[Bridge] Player unit signature not found — Halo Infinite may have updated. "
+            "All 4 pattern variants tried. See game_bridge.py _CANDIDATE_SIGS."
         )
-        if not addr:
-            raise RuntimeError(
-                "[Bridge] Player unit signature not found — the game may have updated. "
-                "Update _SIG_PLAYER_UNIT in game_bridge.py."
-            )
-
-        # RIP-relative pointer: addr+3 holds the 4-byte signed offset, from addr+7
-        rel = self._pm.read_int(addr + 3)
-        ptr_addr = addr + 7 + rel
-        self._player_base = self._pm.read_longlong(ptr_addr)
-
-        # Walk pointer chain to actual biped object
-        self._player_base = self._pm.read_longlong(self._player_base + 0x10)
 
     def _refresh_base(self) -> None:
         """Re-scan if the player pointer changed (e.g. after loading a new level)."""
