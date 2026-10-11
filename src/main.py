@@ -318,20 +318,22 @@ def main() -> None:
             time.sleep(10)
             continue
 
-        overlay = OriTrailOverlay()
-        overlay_thread = threading.Thread(target=overlay.run, daemon=True, name="overlay")
-        overlay_thread.start()
-
-        input_handler = InputHandler()
-        controller = OriMovementController(bridge, audio, overlay, input_handler)
-
-        print("[Point of Light] Active — Ori's movement lives in the Chief. Good luck.")
+        overlay = None
         try:
+            overlay = OriTrailOverlay()
+            overlay_thread = threading.Thread(target=overlay.run, daemon=True, name="overlay")
+            overlay_thread.start()
+
+            input_handler = InputHandler()
+            controller = OriMovementController(bridge, audio, overlay, input_handler)
+
+            print("[Point of Light] Active — Ori's movement lives in the Chief. Good luck.")
             controller.run()
         except Exception as exc:
-            print(f"[Point of Light] Controller error: {exc}")
+            print(f"[Point of Light] Session error: {exc}")
         finally:
-            overlay.stop()
+            if overlay is not None:
+                overlay.stop()
 
         print("[Point of Light] Halo Infinite session ended. Waiting 15 s before reconnect...")
         time.sleep(15)

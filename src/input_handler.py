@@ -31,8 +31,11 @@ class InputHandler:
         self._prev: Set[str] = set()
 
         if _KB_OK:
-            _kb.on_press(self._on_key_down)
-            _kb.on_release(self._on_key_up)
+            try:
+                _kb.on_press(self._on_key_down)
+                _kb.on_release(self._on_key_up)
+            except Exception as exc:
+                print(f"[Input] Keyboard hook failed (run as admin for full input): {exc}")
 
     def _on_key_down(self, event) -> None:
         self._pressed.add(event.name.lower())
