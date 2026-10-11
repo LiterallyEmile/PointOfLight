@@ -11,7 +11,6 @@ cmd = [
     "--onefile",
     "--name", "pointoflight",
     "--console",
-    "--uac-admin",          # keyboard global hooks require admin on Windows
     "--hidden-import", "pymem",
     "--hidden-import", "pygame",
     "--hidden-import", "keyboard",
