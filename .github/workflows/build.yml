@@ -25,7 +25,12 @@ jobs:
       - name: Get version
         id: ver
         shell: bash
-        run: echo "version=${GITHUB_REF_NAME:-dev}" >> $GITHUB_OUTPUT
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev" >> $GITHUB_OUTPUT
+          fi
 
       - name: Rename exe with version
         shell: bash
