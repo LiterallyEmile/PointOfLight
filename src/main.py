@@ -248,21 +248,40 @@ def main() -> None:
 
     _launch_halo(halo_path)
 
-    print("[Point of Light] Waiting for Halo Infinite (up to 2 min)...")
-    bridge = HaloInfiniteBridge()
-    bridge.wait_for_process(timeout=120)
+    import time
 
-    overlay = OriTrailOverlay()
-    overlay_thread = threading.Thread(target=overlay.run, daemon=True, name="overlay")
-    overlay_thread.start()
+    while True:
+        print("[Point of Light] Waiting for Halo Infinite (up to 3 min)...")
+        try:
+            bridge = HaloInfiniteBridge()
+            bridge.wait_for_process(timeout=180)
+        except TimeoutError:
+            print("[Point of Light] Halo Infinite not detected — retrying in 20 s...")
+            print("[Point of Light] If the game is not open, please start it from the Xbox app.")
+            time.sleep(20)
+            continue
+        except Exception as exc:
+            print(f"[Point of Light] Bridge error: {exc}. Retrying in 10 s...")
+            time.sleep(10)
+            continue
 
-    input_handler = InputHandler()
-    controller = OriMovementController(bridge, audio, overlay, input_handler)
+        overlay = OriTrailOverlay()
+        overlay_thread = threading.Thread(target=overlay.run, daemon=True, name="overlay")
+        overlay_thread.start()
 
-    print("[Point of Light] Active — Ori's movement lives in the Chief. Good luck.")
-    controller.run()
+        input_handler = InputHandler()
+        controller = OriMovementController(bridge, audio, overlay, input_handler)
 
-    overlay.stop()
+        print("[Point of Light] Active — Ori's movement lives in the Chief. Good luck.")
+        try:
+            controller.run()
+        except Exception as exc:
+            print(f"[Point of Light] Controller error: {exc}")
+        finally:
+            overlay.stop()
+
+        print("[Point of Light] Halo Infinite session ended. Waiting 15 s before reconnect...")
+        time.sleep(15)
 
 
 if __name__ == "__main__":
