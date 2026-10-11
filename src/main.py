@@ -144,29 +144,32 @@ def _find_ori() -> Path | None:
 _CREATE_NO_WINDOW = 0x08000000
 
 def _launch_halo_appx() -> bool:
-    """Launch Halo Infinite via its AppX package (Xbox Game Pass). Returns True if launched."""
-    # Try known hardcoded AUMID first (avoids PowerShell window)
-    known_aumids = [
-        "Microsoft.HaloInfinite_8wekyb3d8bbwe!HaloInfinite",
-        "Microsoft.HaloInfinite_8wekyb3d8bbwe!App",
-    ]
-    for aumid in known_aumids:
-        try:
-            subprocess.Popen(
-                ["explorer.exe", f"shell:AppsFolder\\{aumid}"],
-                creationflags=_CREATE_NO_WINDOW,
-            )
-            print(f"[Point of Light] Launched via AppX: {aumid}")
-            return True
-        except Exception:
-            continue
-    # Dynamic lookup — hidden PowerShell window
+    """Launch Halo Infinite via its AppX/MSIXVC package (Xbox Game Pass). Returns True if launched."""
+    # Method 1: Get-StartApps — finds Xbox Game Pass MSIXVC installs that Get-AppxPackage misses
     try:
         ps = subprocess.run(
             [
                 "powershell", "-NoProfile", "-WindowStyle", "Hidden",
                 "-NonInteractive", "-Command",
-                "Get-AppxPackage | Where-Object { $_.Name -match 'Halo' } | "
+                "$app = Get-StartApps | Where-Object { $_.Name -like '*Halo*' } | Select-Object -First 1; "
+                "if ($app) { Start-Process ('shell:AppsFolder\\' + $app.AppId); exit 0 } else { exit 1 }",
+            ],
+            capture_output=True, text=True, timeout=20,
+            creationflags=_CREATE_NO_WINDOW,
+        )
+        if ps.returncode == 0:
+            print("[Point of Light] Launched via Start Apps")
+            return True
+    except Exception:
+        pass
+
+    # Method 2: Get-AppxPackage dynamic lookup
+    try:
+        ps = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-WindowStyle", "Hidden",
+                "-NonInteractive", "-Command",
+                "Get-AppxPackage | Where-Object { $_.Name -like '*Halo*' } | "
                 "Select-Object -ExpandProperty PackageFamilyName",
             ],
             capture_output=True, text=True, timeout=20,
@@ -178,16 +181,40 @@ def _launch_halo_appx() -> bool:
                 continue
             for entry in ("HaloInfinite", "App"):
                 try:
-                    subprocess.Popen(
-                        ["explorer.exe", f"shell:AppsFolder\\{pfn}!{entry}"],
+                    result = subprocess.run(
+                        ["powershell", "-NoProfile", "-WindowStyle", "Hidden",
+                         "-NonInteractive", "-Command",
+                         f"Start-Process 'shell:AppsFolder\\{pfn}!{entry}'"],
+                        capture_output=True, text=True, timeout=10,
                         creationflags=_CREATE_NO_WINDOW,
                     )
-                    print(f"[Point of Light] Launched via AppX: {pfn}!{entry}")
-                    return True
+                    if result.returncode == 0:
+                        print(f"[Point of Light] Launched via AppX: {pfn}!{entry}")
+                        return True
                 except Exception:
                     continue
     except Exception:
         pass
+
+    # Method 3: Known AUMIDs via PowerShell Start-Process (errors on wrong AUMID, unlike explorer.exe)
+    for aumid in [
+        "Microsoft.HaloInfinite_8wekyb3d8bbwe!HaloInfinite",
+        "Microsoft.HaloInfinite_8wekyb3d8bbwe!App",
+    ]:
+        try:
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-WindowStyle", "Hidden",
+                 "-NonInteractive", "-Command",
+                 f"Start-Process 'shell:AppsFolder\\{aumid}'"],
+                capture_output=True, text=True, timeout=10,
+                creationflags=_CREATE_NO_WINDOW,
+            )
+            if result.returncode == 0:
+                print(f"[Point of Light] Launched via known AUMID: {aumid}")
+                return True
+        except Exception:
+            continue
+
     return False
 
 
