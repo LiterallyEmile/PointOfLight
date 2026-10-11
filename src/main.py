@@ -9,6 +9,7 @@ installs when they are absent or invalid.
 """
 from __future__ import annotations
 import argparse
+import string
 import subprocess
 import sys
 import threading
@@ -18,29 +19,34 @@ from pathlib import Path
 # ── path detection ────────────────────────────────────────────────────────────
 
 def _is_real_halo_install(path: Path) -> bool:
-    """True when path is a full Halo Infinite install, not just a bare Melty-managed copy.
+    """True when path is a full Halo Infinite install, not just Melty's bare marker copy.
 
-    Steam installs have HaloInfinite.exe + dlls/subdirs.
-    Xbox Game Pass installs have the exe in a locked WindowsApps folder, but the
-    content folder (maps, modules, etc.) has many files.
-    Either way, a real install has at least 5 items; Melty's bare copy has only one
-    marker file.
+    Steam installs have HaloInfinite.exe.
+    Game Pass installs have the exe in a locked WindowsApps folder, but the
+    Content folder contains subdirectories (maps/, data/, etc.).
+    Melty's managed copy has only one .mapinfo marker file and no subdirectories.
     """
     if not path.is_dir():
         return False
+    # Steam install: exe is directly present
+    if (path / "HaloInfinite.exe").exists():
+        return True
+    # Game Pass Content folder: has at least one subdirectory
     try:
-        count = sum(1 for _ in path.iterdir())
-        return count >= 2
+        for item in path.iterdir():
+            if item.is_dir():
+                return True
     except OSError:
-        return False
+        pass
+    return False
 
 
 def _find_halo() -> Path | None:
     """Locate Halo Infinite Campaign on this PC (Game Pass or Steam)."""
     candidates: list[Path] = []
 
-    # Common Xbox Game Pass / Xbox app install roots
-    for drive in "CDEFGH":
+    # All drive letters — Xbox games can be on any drive the user chose
+    for drive in string.ascii_uppercase:
         for sub in [
             f"{drive}:/XboxGames/Halo Infinite/Content",
             f"{drive}:/XboxGames/Halo Infinite",
@@ -81,8 +87,7 @@ def _find_ori() -> Path | None:
     """Locate Ori and the Will of the Wisps on this PC (Game Pass or Steam)."""
     candidates: list[Path] = []
 
-    # Common Xbox Game Pass / Xbox app install roots
-    for drive in "CDEFGH":
+    for drive in string.ascii_uppercase:
         for name in ("Ori and the Will of the Wisps", "OriAndTheWillOfTheWisps"):
             candidates.append(Path(f"{drive}:/XboxGames/{name}"))
 
@@ -112,22 +117,47 @@ def _find_ori() -> Path | None:
 
 # ── launch helpers ────────────────────────────────────────────────────────────
 
+_CREATE_NO_WINDOW = 0x08000000
+
 def _launch_halo_appx() -> bool:
     """Launch Halo Infinite via its AppX package (Xbox Game Pass). Returns True if launched."""
+    # Try known hardcoded AUMID first (avoids PowerShell window)
+    known_aumids = [
+        "Microsoft.HaloInfinite_8wekyb3d8bbwe!HaloInfinite",
+        "Microsoft.HaloInfinite_8wekyb3d8bbwe!App",
+    ]
+    for aumid in known_aumids:
+        try:
+            subprocess.Popen(
+                ["explorer.exe", f"shell:AppsFolder\\{aumid}"],
+                creationflags=_CREATE_NO_WINDOW,
+            )
+            print(f"[Point of Light] Launched via AppX: {aumid}")
+            return True
+        except Exception:
+            continue
+    # Dynamic lookup — hidden PowerShell window
     try:
         ps = subprocess.run(
             [
-                "powershell", "-NoProfile", "-NonInteractive", "-Command",
-                "(Get-AppxPackage | Where-Object { $_.Name -match 'HaloInfinite' } "
-                "| Select-Object -First 1).PackageFamilyName",
+                "powershell", "-NoProfile", "-WindowStyle", "Hidden",
+                "-NonInteractive", "-Command",
+                "Get-AppxPackage | Where-Object { $_.Name -match 'Halo' } | "
+                "Select-Object -ExpandProperty PackageFamilyName",
             ],
             capture_output=True, text=True, timeout=20,
+            creationflags=_CREATE_NO_WINDOW,
         )
-        pfn = ps.stdout.strip()
-        if pfn:
-            for entry in ("HaloInfinite", "App", "game"):
+        for pfn in ps.stdout.strip().splitlines():
+            pfn = pfn.strip()
+            if not pfn:
+                continue
+            for entry in ("HaloInfinite", "App"):
                 try:
-                    subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{pfn}!{entry}"])
+                    subprocess.Popen(
+                        ["explorer.exe", f"shell:AppsFolder\\{pfn}!{entry}"],
+                        creationflags=_CREATE_NO_WINDOW,
+                    )
                     print(f"[Point of Light] Launched via AppX: {pfn}!{entry}")
                     return True
                 except Exception:
