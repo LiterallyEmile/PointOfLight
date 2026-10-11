@@ -41,6 +41,30 @@ def _is_real_halo_install(path: Path) -> bool:
     return False
 
 
+def _is_real_ori_install(path: Path) -> bool:
+    """True when path is a full Ori WotW install, not Melty's bare marker copy."""
+    if not path.is_dir():
+        return False
+    if (path / "oriBF2.exe").exists() or (path / "OriBF2.exe").exists():
+        # Bare Melty copy has only the exe and no subdirectories.
+        # A real install has subdirectories alongside (or instead of) the exe.
+        try:
+            for item in path.iterdir():
+                if item.is_dir():
+                    return True
+        except OSError:
+            pass
+        return False
+    # No exe present — could still be a Content sub-folder style install
+    try:
+        for item in path.iterdir():
+            if item.is_dir():
+                return True
+    except OSError:
+        pass
+    return False
+
+
 def _find_halo() -> Path | None:
     """Locate Halo Infinite Campaign on this PC (Game Pass or Steam)."""
     candidates: list[Path] = []
@@ -227,8 +251,10 @@ def main() -> None:
 
     # Resolve Ori path (optional — audio degrades gracefully)
     ori_path = Path(args.ori_path) if args.ori_path else None
-    if ori_path and not ori_path.is_dir():
-        ori_path = None
+    if ori_path is not None:
+        # Reject bare Melty managed copy (only the disc marker, no subdirectories)
+        if not ori_path.is_dir() or not _is_real_ori_install(ori_path):
+            ori_path = None
     if ori_path is None:
         ori_path = _find_ori()
     if ori_path is None:
