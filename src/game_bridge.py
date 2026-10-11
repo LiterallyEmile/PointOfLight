@@ -96,9 +96,6 @@ class HaloInfiniteBridge:
     # ------------------------------------------------------------------
 
     def _scan_addresses(self) -> None:
-        base = pymem.process.base_address(self._pm.process_handle, self.PROCESS)
-        size = pymem.process.virtual_query_ex(self._pm.process_handle, base).RegionSize
-
         pattern = _SIG_PLAYER_UNIT
         addr = pymem.pattern.pattern_scan_all(self._pm.process_handle, pattern, return_multiple=False)
         if not addr:
