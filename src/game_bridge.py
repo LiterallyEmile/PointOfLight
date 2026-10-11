@@ -30,13 +30,15 @@ except ImportError:
 # Found in HaloInfinite.exe via community reverse engineering.
 # Update these if the game patches and signatures no longer match.
 # ---------------------------------------------------------------------------
+# Wildcard bytes are \x00 in the pattern with \x00 in the mask.
+# Exact bytes are themselves in pattern with \xFF in the mask.
 _SIG_PLAYER_UNIT = (
-    b"\x48\x8B\x05\xFF\xFF\xFF\xFF"   # mov rax, [rip+?]
+    b"\x48\x8B\x05\x00\x00\x00\x00"   # mov rax, [rip+?]  — 4 wildcard offset bytes
     b"\x48\x85\xC0"                    # test rax, rax
-    b"\x74\xFF"                        # jz <skip>
+    b"\x74\x00"                        # jz <skip>  — wildcard offset
     b"\x48\x8B\x48\x10"               # mov rcx, [rax+10]
 )
-_SIG_MASK_PLAYER_UNIT = b"\xFF\xFF\xFF\x00\x00\x00\x00\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+_SIG_MASK_PLAYER_UNIT = b"\xFF\xFF\xFF\x00\x00\x00\x00\xFF\xFF\xFF\xFF\x00\xFF\xFF\xFF\xFF"
 
 # Offsets from the player biped object base
 _OFF_POSITION   = 0x0A8   # float[3]  x,y,z world position
@@ -97,7 +99,10 @@ class HaloInfiniteBridge:
 
     def _scan_addresses(self) -> None:
         pattern = _SIG_PLAYER_UNIT
-        addr = pymem.pattern.pattern_scan_all(self._pm.process_handle, pattern, return_multiple=False)
+        addr = pymem.pattern.pattern_scan_all(
+            self._pm.process_handle, pattern,
+            mask=_SIG_MASK_PLAYER_UNIT, return_multiple=False,
+        )
         if not addr:
             raise RuntimeError(
                 "[Bridge] Player unit signature not found — the game may have updated. "
