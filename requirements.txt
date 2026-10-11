@@ -1,0 +1,6 @@
+pymem>=1.12.0
+pygame>=2.5.0
+keyboard>=0.13.5
+inputs>=0.5
+pywin32>=306
+pyinstaller>=6.3.0
