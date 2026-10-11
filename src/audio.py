@@ -48,7 +48,7 @@ _EVENT_MAP: Dict[str, str] = {
 
 
 class OriAudioEngine:
-    def __init__(self, ori_path: Path):
+    def __init__(self, ori_path: Optional[Path]):
         self._ori_path = ori_path
         self._sounds: Dict[str, Optional[object]] = {}
         self._temp_dir = Path(tempfile.mkdtemp(prefix="pol_audio_"))
@@ -67,6 +67,8 @@ class OriAudioEngine:
 
     def _find_audio_bank_dir(self) -> Optional[Path]:
         """Walk the Ori install to find the Wwise bank directory."""
+        if self._ori_path is None:
+            return None
         for root, dirs, files in os.walk(self._ori_path):
             for f in files:
                 if f.endswith(".bnk"):

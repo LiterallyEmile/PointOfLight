@@ -2,40 +2,141 @@
 Point of Light — launcher.
 
 Melty calls:
-  pointoflight.exe --halo-path <path> --ori-path <path>
+  pointoflight.exe [--halo-path <path>] [--ori-path <path>]
 
-Both paths are passed automatically by Melty when the player has the
-required games installed.
+Paths are optional; the exe auto-detects Xbox Game Pass and Steam
+installs when they are absent or invalid.
 """
 from __future__ import annotations
 import argparse
 import subprocess
 import sys
 import threading
-import time
 from pathlib import Path
 
+
+# ── path detection ────────────────────────────────────────────────────────────
+
+def _find_halo() -> Path | None:
+    """Locate Halo Infinite Campaign on this PC (Game Pass or Steam)."""
+    candidates: list[Path] = []
+
+    # Common Xbox Game Pass / Xbox app install roots
+    for drive in "CDEFGH":
+        for sub in [
+            f"{drive}:/XboxGames/Halo Infinite/Content",
+            f"{drive}:/XboxGames/Halo Infinite",
+            f"{drive}:/Program Files/ModifiableWindowsApps/Halo Infinite",
+        ]:
+            candidates.append(Path(sub))
+
+    # Steam via registry (App ID 1708091)
+    try:
+        import winreg
+        for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                key = winreg.OpenKey(
+                    hive,
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1708091",
+                )
+                loc, _ = winreg.QueryValueEx(key, "InstallLocation")
+                winreg.CloseKey(key)
+                candidates.append(Path(loc))
+            except OSError:
+                pass
+    except ImportError:
+        pass
+
+    for p in candidates:
+        if p.is_dir() and (p / "HaloInfinite.exe").exists():
+            return p
+
+    return None
+
+
+def _find_ori() -> Path | None:
+    """Locate Ori and the Will of the Wisps on this PC (Game Pass or Steam)."""
+    candidates: list[Path] = []
+
+    # Common Xbox Game Pass / Xbox app install roots
+    for drive in "CDEFGH":
+        for name in ("Ori and the Will of the Wisps", "OriAndTheWillOfTheWisps"):
+            candidates.append(Path(f"{drive}:/XboxGames/{name}"))
+
+    # Steam via registry (App ID 1057090)
+    try:
+        import winreg
+        for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                key = winreg.OpenKey(
+                    hive,
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1057090",
+                )
+                loc, _ = winreg.QueryValueEx(key, "InstallLocation")
+                winreg.CloseKey(key)
+                candidates.append(Path(loc))
+            except OSError:
+                pass
+    except ImportError:
+        pass
+
+    for p in candidates:
+        if p.is_dir():
+            return p
+
+    return None
+
+
+# ── launch helpers ────────────────────────────────────────────────────────────
+
+def _launch_halo(halo_path: Path) -> None:
+    exe = halo_path / "HaloInfinite.exe"
+    if not exe.exists():
+        for found in halo_path.rglob("HaloInfinite.exe"):
+            exe = found
+            break
+    if not exe.exists():
+        sys.exit(f"[Point of Light] HaloInfinite.exe not found under {halo_path}")
+    subprocess.Popen([str(exe), "-singleplayer", "-novid"])
+    print(f"[Point of Light] Launched: {exe}")
+
+
+# ── entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="pointoflight",
         description="Point of Light — Ori movement in Halo Infinite campaign",
     )
-    parser.add_argument("--halo-path", required=True,
-                        help="Halo Infinite install directory (passed by Melty)")
-    parser.add_argument("--ori-path",  required=True,
-                        help="Ori and the Will of the Wisps install directory (passed by Melty)")
+    parser.add_argument("--halo-path", default="",
+                        help="Halo Infinite install directory (optional; auto-detected if omitted)")
+    parser.add_argument("--ori-path",  default="",
+                        help="Ori and the Will of the Wisps install directory (optional; auto-detected if omitted)")
     args = parser.parse_args()
 
-    halo_path = Path(args.halo_path)
-    ori_path  = Path(args.ori_path)
+    # Resolve Halo Infinite path
+    halo_path = Path(args.halo_path) if args.halo_path else None
+    if halo_path and not (halo_path / "HaloInfinite.exe").exists():
+        halo_path = None  # provided path is bad; fall through to auto-detect
+    if halo_path is None:
+        halo_path = _find_halo()
+    if halo_path is None:
+        sys.exit(
+            "[Point of Light] Could not find Halo Infinite Campaign.\n"
+            "Please install it via Steam or Xbox, or pass --halo-path <folder>."
+        )
 
-    _require_dir(halo_path, "Halo Infinite")
-    _require_dir(ori_path,  "Ori and the Will of the Wisps")
+    # Resolve Ori path (optional — audio degrades gracefully)
+    ori_path = Path(args.ori_path) if args.ori_path else None
+    if ori_path and not ori_path.is_dir():
+        ori_path = None
+    if ori_path is None:
+        ori_path = _find_ori()
+    if ori_path is None:
+        print("[Point of Light] Ori not found — ability sounds will be silent.")
 
     print("[Point of Light] Loading Ori's spirit...")
 
-    # Late imports so missing deps give a clear error before we start the game
     from .audio    import OriAudioEngine
     from .overlay  import OriTrailOverlay
     from .game_bridge   import HaloInfiniteBridge
@@ -43,7 +144,8 @@ def main() -> None:
     from .input_handler import InputHandler
 
     audio = OriAudioEngine(ori_path)
-    audio.load_ability_sounds()
+    if ori_path is not None:
+        audio.load_ability_sounds()
 
     _launch_halo(halo_path)
 
@@ -62,24 +164,6 @@ def main() -> None:
     controller.run()
 
     overlay.stop()
-
-
-def _require_dir(path: Path, name: str) -> None:
-    if not path.exists():
-        sys.exit(f"[Point of Light] {name} not found at: {path}\n"
-                 "Make sure the game is installed and Melty has the correct path.")
-
-
-def _launch_halo(halo_path: Path) -> None:
-    exe = halo_path / "HaloInfinite.exe"
-    if not exe.exists():
-        for found in halo_path.rglob("HaloInfinite.exe"):
-            exe = found
-            break
-    if not exe.exists():
-        sys.exit(f"[Point of Light] HaloInfinite.exe not found under {halo_path}")
-    subprocess.Popen([str(exe), "-singleplayer", "-novid"])
-    print(f"[Point of Light] Launched: {exe}")
 
 
 if __name__ == "__main__":

@@ -3,19 +3,19 @@
   "components": [
     {
       "fileName": "pointoflight-*.exe",
-      "description": "Point of Light companion executable",
-      "install": "{localappdata}/PointOfLight/pointoflight.exe"
+      "label": "Point of Light",
+      "install": "{managed}/pointoflight.exe"
     }
   ],
   "launch": {
-    "executable": "{localappdata}/PointOfLight/pointoflight.exe",
+    "executable": "{managed}/pointoflight.exe",
     "args": [
-      "--halo-path", "{game:halo-infinite}",
-      "--ori-path",  "{game:ori-and-the-will-of-the-wisps}"
+      "--halo-path", "{game:custom-halo-infinite-campaign}",
+      "--ori-path",  "{game:custom-ori-and-the-will-of-the-wisps}"
     ]
   },
   "games": [
-    "halo-infinite",
-    "ori-and-the-will-of-the-wisps"
+    "custom-halo-infinite-campaign",
+    "custom-ori-and-the-will-of-the-wisps"
   ]
 }
