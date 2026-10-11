@@ -9,11 +9,37 @@ installs when they are absent or invalid.
 """
 from __future__ import annotations
 import argparse
+import json
+import os
 import string
 import subprocess
 import sys
 import threading
 from pathlib import Path
+
+
+# ── Melty test-mode helper ────────────────────────────────────────────────────
+
+def _melty_test_check(name: str, passed: bool = True, reason: str = "") -> None:
+    """Append a pass/fail line to Melty's test checks file if running in test mode."""
+    try:
+        appdata = os.environ.get("LOCALAPPDATA", "")
+        if not appdata:
+            return
+        test_json = Path(appdata) / "Melty" / "test" / "point-of-light.json"
+        if not test_json.exists():
+            return
+        with open(test_json) as f:
+            data = json.load(f)
+        checks_path = data.get("checks", "")
+        if not checks_path:
+            return
+        verdict = "pass" if passed else "fail"
+        line = f"{verdict} {name}" + (f": {reason}" if reason else "")
+        with open(checks_path, "a") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
 
 
 # ── path detection ────────────────────────────────────────────────────────────
@@ -287,6 +313,7 @@ def main() -> None:
     if ori_path is None:
         print("[Point of Light] Ori not found — ability sounds will be silent.")
 
+    _melty_test_check("started")
     print("[Point of Light] Loading Ori's spirit...")
 
     from .audio    import OriAudioEngine
