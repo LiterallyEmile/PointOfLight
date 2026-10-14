@@ -48,10 +48,9 @@ jobs:
           path: dist/pointoflight-*.exe
 
       - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0
-          name: Point of Light v0.1.0
           files: dist/pointoflight-*.exe
           generate_release_notes: false
           body: "Ori and the Will of the Wisps movement in Halo Infinite campaign."

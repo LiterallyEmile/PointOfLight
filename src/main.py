@@ -159,7 +159,7 @@ def _find_ori() -> Path | None:
         pass
 
     for p in candidates:
-        if p.is_dir():
+        if _is_real_ori_install(p):
             return p
 
     return None

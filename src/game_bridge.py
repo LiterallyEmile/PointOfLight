@@ -136,6 +136,7 @@ class HaloInfiniteBridge:
                 ptr_addr = instr_end + rel
                 self._player_base = self._pm.read_longlong(ptr_addr)
                 self._player_base = self._pm.read_longlong(self._player_base + chain_off)
+                self._timescale_addr = self._player_base + _OFF_TIMESCALE
                 return
 
         raise RuntimeError(
