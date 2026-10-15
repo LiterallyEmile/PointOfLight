@@ -27,11 +27,18 @@ Melty installs and passes both paths automatically.
 | Wall Climb | Auto (press into wall mid-air) | Grab wall, slide slowly, jump off. |
 | Spirit Arc | Right Click | Grapple toward aimed point. |
 
+## Also: Ori in Cuphead
+
+[`cuphead/`](cuphead/README.md) is a separate BepInEx plugin that brings Ori's
+combat (Spirit Edge, Arc, Smash, Star, Spear, Light Burst, Regenerate, Bash and
+energy) and an Ori skin to Cuphead.
+
 ## Credits
 
 Movement design and code: Point of Light project  
 Ori and the Will of the Wisps: Moon Studios / Xbox Game Studios  
-Halo Infinite: 343 Industries / Xbox Game Studios
+Halo Infinite: 343 Industries / Xbox Game Studios  
+Cuphead: Studio MDHR
 
 ## License
 

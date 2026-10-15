@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Builds BepInEx/plugins/OriCuphead/OriCuphead.dll against your own Cuphead install.
+
+      dotnet build -c Release -p:CupheadDir="D:\SteamLibrary\steamapps\common\Cuphead"
+
+    CupheadDir must contain Cuphead_Data\Managed and an installed BepInEx 5 (BepInEx\core).
+    If BepInEx\plugins exists, the built plugin is copied straight into it.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net35</TargetFramework>
+    <AssemblyName>OriCuphead</AssemblyName>
+    <RootNamespace>PointOfLight.Cuphead</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Version>0.1.0</Version>
+    <Deterministic>true</Deterministic>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <CupheadDir Condition="'$(CupheadDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Cuphead</CupheadDir>
+    <ManagedDir>$(CupheadDir)\Cuphead_Data\Managed</ManagedDir>
+    <BepInExDir>$(CupheadDir)\BepInEx</BepInExDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- net35 reference assemblies, so no .NET Framework 3.5 targeting pack is needed. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Unity 5 ships one UnityEngine.dll; Unity 2017+ splits it into modules. The wildcard covers both. -->
+    <Reference Include="$(ManagedDir)\UnityEngine*.dll" Private="false" />
+    <Reference Include="$(BepInExDir)\core\BepInEx.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CheckCupheadDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(ManagedDir)')" Text="Cuphead not found at '$(CupheadDir)'. Pass -p:CupheadDir=&quot;&lt;your Cuphead folder&gt;&quot;." />
+    <Error Condition="!Exists('$(BepInExDir)\core\BepInEx.dll')" Text="BepInEx 5 isn't installed in '$(CupheadDir)'. Install it and run the game once first (see cuphead/README.md)." />
+  </Target>
+
+  <Target Name="InstallPlugin" AfterTargets="Build" Condition="Exists('$(BepInExDir)\plugins')">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BepInExDir)\plugins\OriCuphead" />
+    <Message Importance="high" Text="Installed to $(BepInExDir)\plugins\OriCuphead" />
+  </Target>
+
+</Project>
