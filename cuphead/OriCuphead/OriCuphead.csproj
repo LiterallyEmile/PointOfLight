@@ -32,18 +32,36 @@
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!-- Default: compile against your own Cuphead install. -->
+  <ItemGroup Condition="'$(RefMode)' != 'ci'">
     <!-- Unity 5 ships one UnityEngine.dll; Unity 2017+ splits it into modules. The wildcard covers both. -->
     <Reference Include="$(ManagedDir)\UnityEngine*.dll" Private="false" />
     <Reference Include="$(BepInExDir)\core\BepInEx.dll" Private="false" />
   </ItemGroup>
 
-  <Target Name="CheckCupheadDir" BeforeTargets="ResolveAssemblyReferences">
+  <!--
+    -p:RefMode=ci: compile without Cuphead, from BepInEx's NuGet feed (used by GitHub Actions).
+    The output must then go through tools/Retarget so it loads on any Unity version.
+  -->
+  <PropertyGroup Condition="'$(RefMode)' == 'ci'">
+    <RestoreAdditionalProjectSources>https://nuget.bepinex.dev/v3/index.json</RestoreAdditionalProjectSources>
+    <UnityRefVersion Condition="'$(UnityRefVersion)' == ''">2017.4.*</UnityRefVersion>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(RefMode)' == 'ci'">
+    <PackageReference Include="BepInEx.Core" Version="5.4.*" IncludeAssets="compile" PrivateAssets="all" />
+    <PackageReference Include="UnityEngine.Modules" Version="$(UnityRefVersion)" IncludeAssets="compile" PrivateAssets="all" GeneratePathProperty="true" />
+  </ItemGroup>
+  <Target Name="ReportUnityRefs" AfterTargets="Build" Condition="'$(RefMode)' == 'ci'">
+    <!-- CI reads this to know where the UnityEngine reference DLLs are, for the retarget check. -->
+    <WriteLinesToFile File="$(OutDir)unity-refs.txt" Lines="$(PkgUnityEngine_Modules)" Overwrite="true" />
+  </Target>
+
+  <Target Name="CheckCupheadDir" BeforeTargets="ResolveAssemblyReferences" Condition="'$(RefMode)' != 'ci'">
     <Error Condition="!Exists('$(ManagedDir)')" Text="Cuphead not found at '$(CupheadDir)'. Pass -p:CupheadDir=&quot;&lt;your Cuphead folder&gt;&quot;." />
     <Error Condition="!Exists('$(BepInExDir)\core\BepInEx.dll')" Text="BepInEx 5 isn't installed in '$(CupheadDir)'. Install it and run the game once first (see cuphead/README.md)." />
   </Target>
 
-  <Target Name="InstallPlugin" AfterTargets="Build" Condition="Exists('$(BepInExDir)\plugins')">
+  <Target Name="InstallPlugin" AfterTargets="Build" Condition="'$(RefMode)' != 'ci' And Exists('$(BepInExDir)\plugins')">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BepInExDir)\plugins\OriCuphead" />
     <Message Importance="high" Text="Installed to $(BepInExDir)\plugins\OriCuphead" />
   </Target>

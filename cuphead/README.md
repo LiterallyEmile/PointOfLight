@@ -58,21 +58,43 @@ replaces: `edge`, `smash`, `arc`, `star`, `spear`, `burst`, `bash_start`,
 
 ## Install
 
-1. **Install BepInEx 5** (not 6) into your Cuphead folder, the one with
+### Through Melty (easiest)
+
+Install **Point of Light** in Melty and launch it. The launcher does the rest:
+
+1. It finds your Cuphead folder, through Steam or GOG.
+2. It installs BepInEx 5 there, choosing 32- or 64-bit to match your game.
+3. It copies the Ori plugin into `BepInEx/plugins/OriCuphead/`.
+4. It starts Cuphead and waits for it to close.
+5. It removes the Ori plugin again, so starting Cuphead outside Melty gives you vanilla Cuphead.
+   BepInEx itself stays installed; with no plugins it changes nothing.
+
+Ori shows up about a second after any run 'n gun or boss level starts.
+
+### By hand
+
+1. Install BepInEx 5 (not 6) into your Cuphead folder, the one with
    `Cuphead.exe`. Get the x64 build, unless Task Manager shows the game as
-   "Cuphead (32 bit)", in which case get x86. Run the game once, then close
-   it. If `BepInEx/LogOutput.log` now exists, BepInEx is working.
-2. **Build the plugin.** This needs the [.NET SDK](https://dotnet.microsoft.com/download) (6 or newer).
+   "Cuphead (32 bit)", in which case get x86. Run the game once, then close it.
+2. Build the plugin against your own game. This needs the [.NET SDK](https://dotnet.microsoft.com/download), 6 or newer.
    ```
    cd cuphead/OriCuphead
    dotnet build -c Release -p:CupheadDir="C:\Program Files (x86)\Steam\steamapps\common\Cuphead"
    ```
-   It compiles against your own game's DLLs and copies `OriCuphead.dll` into
-   `BepInEx/plugins/OriCuphead/` for you.
-3. Start Cuphead and enter any run 'n gun or boss level. Ori shows up about a second after the level starts.
+   This copies `OriCuphead.dll` into `BepInEx/plugins/OriCuphead/`. It stays
+   there until you delete it, so every normal launch has Ori.
 
 Settings are in `BepInEx/config/com.pointoflight.oricuphead.cfg`, which is
 created after the first run.
+
+### How CI builds it without Cuphead
+
+GitHub Actions doesn't have Cuphead's files. Instead, it compiles against
+Unity 2017.4 reference DLLs and BepInEx 5 from BepInEx's NuGet feed. It then
+runs `tools/Retarget`, which points every Unity reference at plain
+`UnityEngine.dll`. Every Unity version ships that file, so the plugin loads
+whatever Unity version Cuphead is built on. The build fails if any Unity call
+the plugin makes can't be resolved.
 
 ## How it hooks in, and what to do if something doesn't work
 

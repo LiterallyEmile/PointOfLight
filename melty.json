@@ -2,20 +2,18 @@
   "schemaVersion": 1,
   "components": [
     {
-      "fileName": "pointoflight-*.exe",
-      "label": "Point of Light",
-      "install": "{managed}/pointoflight.exe"
+      "fileName": "oricuphead-*.exe",
+      "label": "Point of Light: Ori in Cuphead",
+      "install": "{managed}/oricuphead.exe"
     }
   ],
   "launch": {
-    "executable": "{managed}/pointoflight.exe",
+    "executable": "{managed}/oricuphead.exe",
     "args": [
-      "--halo-path", "{game:custom-halo-infinite-campaign}",
-      "--ori-path",  "{game:custom-ori-and-the-will-of-the-wisps}"
+      "--cuphead-path", "{game:custom-cuphead}"
     ]
   },
   "games": [
-    "custom-halo-infinite-campaign",
-    "custom-ori-and-the-will-of-the-wisps"
+    "custom-cuphead"
   ]
 }

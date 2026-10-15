@@ -13,7 +13,7 @@ Spirit Arc — with Ori's glowing light trails and ability sounds.
 | Halo Infinite | PC (Xbox App or Steam) | Campaign required |
 | Ori and the Will of the Wisps | PC (Steam or Xbox App) | Audio assets |
 
-Melty installs and passes both paths automatically.
+Pass both paths on the command line, or let the exe auto-detect them.
 
 ## Abilities
 
@@ -27,11 +27,12 @@ Melty installs and passes both paths automatically.
 | Wall Climb | Auto (press into wall mid-air) | Grab wall, slide slowly, jump off. |
 | Spirit Arc | Right Click | Grapple toward aimed point. |
 
-## Also: Ori in Cuphead
+## Ori in Cuphead (what Melty installs)
 
-[`cuphead/`](cuphead/README.md) is a separate BepInEx plugin that brings Ori's
-combat (Spirit Edge, Arc, Smash, Star, Spear, Light Burst, Regenerate, Bash and
-energy) and an Ori skin to Cuphead.
+`melty.json` now installs [Ori in Cuphead](cuphead/README.md): Ori's combat
+(Spirit Edge, Arc, Smash, Star, Spear, Light Burst, Regenerate, Bash and energy)
+and an Ori skin in Cuphead. The Halo Infinite tool below is still in the repo
+and still built by CI as an artifact, but Melty no longer offers it.
 
 ## Credits
 

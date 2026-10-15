@@ -12,7 +12,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  # Ori in Halo Infinite. No longer offered through Melty; built so the exe stays downloadable as an artifact.
+  halo:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +28,63 @@ jobs:
       - name: Build exe
         run: python build.py
 
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pointoflight-halo-exe
+          path: dist/pointoflight.exe
+
+  # Ori in Cuphead — what melty.json installs.
+  cuphead:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download BepInEx 5 (bundled into the launcher)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=$(gh api "repos/BepInEx/BepInEx/releases?per_page=100" \
+                --jq '[.[] | select(.prerelease | not) | select(.tag_name | test("^v5\\."))][0].tag_name')
+          echo "Using BepInEx $tag"
+          mkdir -p dl cuphead/launcher/payload
+          gh release download "$tag" -R BepInEx/BepInEx -D dl -p "*.zip"
+          ls dl
+          pick() { ls dl/*.zip | grep -i "$1" | grep -viE 'linux|macos|unix' | head -1; }
+          x64=$(pick x64); x86=$(pick x86)
+          test -n "$x64" && test -n "$x86"
+          cp "$x64" cuphead/launcher/payload/bepinex_x64.zip
+          cp "$x86" cuphead/launcher/payload/bepinex_x86.zip
+
+      - name: Build Ori plugin
+        run: dotnet build cuphead/OriCuphead/OriCuphead.csproj -c Release -p:RefMode=ci
+
+      - name: Retarget to UnityEngine and verify every Unity call resolves
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=cuphead/OriCuphead/bin/Release/net35
+          pkg=$(cygpath -u "$(tr -d '\r' < $out/unity-refs.txt)")
+          refdir=$(dirname "$(find "$pkg" -name UnityEngine.dll | head -1)")
+          echo "Unity references: $refdir"
+          dotnet run --project cuphead/tools/Retarget -c Release -- \
+            "$out/OriCuphead.dll" cuphead/launcher/payload/OriCuphead.dll --verify "$refdir"
+
+      - name: Build launcher
+        run: |
+          pip install pyinstaller
+          python cuphead/launcher/build.py
+
       - name: Get version
         id: ver
         shell: bash
@@ -39,19 +97,21 @@ jobs:
 
       - name: Rename exe with version
         shell: bash
-        run: mv dist/pointoflight.exe "dist/pointoflight-${{ steps.ver.outputs.version }}.exe"
+        run: mv dist/oricuphead.exe "dist/oricuphead-${{ steps.ver.outputs.version }}.exe"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pointoflight-exe
-          path: dist/pointoflight-*.exe
+          name: oricuphead-exe
+          path: |
+            dist/oricuphead-*.exe
+            cuphead/launcher/payload/OriCuphead.dll
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v0.1.0
           name: Point of Light v0.1.0
-          files: dist/pointoflight-*.exe
+          files: dist/oricuphead-*.exe
           generate_release_notes: false
-          body: "Ori and the Will of the Wisps movement in Halo Infinite campaign."
+          body: "Ori and the Will of the Wisps' combat and an Ori skin in Cuphead. Install and launch through Melty."
